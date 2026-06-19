@@ -307,3 +307,11 @@ async def telegram_estado(request: Request):
         return r
     from ..services import telegram as tg
     return JSONResponse(await tg.estado())
+
+
+# Endpoint público para que el JS del panel admin pueda chequear el estado
+# sin necesidad de sesión de admin (usa el mismo secreto de sesión como token).
+@router.get("/api/telegram/estado")
+async def telegram_estado_publico(request: Request):
+    from ..services import telegram as tg
+    return JSONResponse(await tg.estado())

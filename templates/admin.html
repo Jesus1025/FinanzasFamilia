@@ -71,7 +71,7 @@
 <script>
 (async function(){
   try {
-    const r = await fetch('/admin/telegram/estado');
+    const r = await fetch('/admin/api/telegram/estado');
     const d = await r.json();
     const ok = d.ok && d.webhook;
     document.getElementById('telegramStatus').className = 'tag ' + (ok ? 'owner' : 'off');
