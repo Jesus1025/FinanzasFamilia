@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block household_selector %}
+{% if es_admin and households|length >= 1 %}
+<div class="hh-select">
+  <select id="hhSelect" onchange="location.href='/?hh='+this.value" title="Cambiar de familia">
+    {% for h in households %}
+    <option value="{{ h.id }}" {{ 'selected' if h.id == household.id else '' }}>👨‍👩‍👧 {{ h.name }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% else %}
+<span class="hh-pill">👨‍👩‍👧 {{ household.name }}</span>
+{% endif %}
+{% endblock %}
+
+{% block ia_badge %}
+{% if deepseek %}
+<span class="ia-badge on" title="Asistente IA activo ({{ modelo }})"><span class="dot"></span> IA</span>
+{% else %}
+<span class="ia-badge off" title="Sin API key: modo reglas locales"><span class="dot"></span> IA off</span>
+{% endif %}
+{% if telegram_on %}
+<span class="ia-badge on" title="Bot de Telegram conectado"><span class="dot"></span> Telegram</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="monthnav">
+  <a class="btn ghost icon" href="/?year={{ prev_y }}&month={{ prev_m }}">←</a>
+  <h1>{{ mes_nombre }} <span class="year">{{ year }}</span></h1>
+  <a class="btn ghost icon" href="/?year={{ next_y }}&month={{ next_m }}">→</a>
+  <div class="person-filter" id="personFilter">
+    <button class="chip active" data-u="">Todos</button>
+    {% for u in users if u.is_active %}
+    <button class="chip" data-u="{{ u.id }}">{{ u.name.split(' ')[0] }}</button>
+    {% endfor %}
+  </div>
+  <a class="btn ghost" href="/api/export.xlsx?year={{ year }}&month={{ month }}">⬇ Excel</a>
+  <a class="btn ghost" href="/api/export.pdf?year={{ year }}&month={{ month }}">⬇ PDF</a>
+</div>
+
+{% if not deepseek %}
+<p class="aviso">⚙️ <b>Modo sin IA.</b> Agrega tu <code>DEEPSEEK_API_KEY</code> en <code>.env</code> y reinicia para activar el asistente inteligente, el chat y el análisis del mes.</p>
+{% endif %}
+
+{% if gcal_on and logueado and not gcal_conectado %}
+<p class="aviso">📅 <b>Conecta tu Google Calendar</b> para que tus recordatorios queden agendados con alarma automáticamente. <a href="/auth/google">Conectar ahora →</a></p>
+{% elif gcal_on and gcal_conectado %}
+<p class="aviso" style="background:linear-gradient(135deg,rgba(52,211,153,.14),rgba(34,211,238,.07));border-color:rgba(52,211,153,.35)">📅 <b>Google Calendar conectado.</b> Tus recordatorios se agendan solos con alarma.</p>
+{% endif %}
+
+<section class="cards">
+  <div class="card income">
+    <div class="card-top"><span class="card-ico">💰</span><span>Ingresos</span></div>
+    <strong id="kpiIngresos">—</strong>
+    <small id="kpiIngresosSub" class="card-sub"></small>
+  </div>
+  <div class="card expense">
+    <div class="card-top"><span class="card-ico">💸</span><span>Gastos</span></div>
+    <strong id="kpiGastos">—</strong>
+    <small id="kpiGastosDelta" class="card-sub"></small>
+  </div>
+  <div class="card balance">
+    <div class="card-top"><span class="card-ico">🟢</span><span>Te queda</span></div>
+    <strong id="kpiDisponible">—</strong>
+    <small id="kpiDisponibleSub" class="card-sub"></small>
+  </div>
+  <div class="card ant">
+    <div class="card-top"><span class="card-ico">🐜</span><span>Gasto hormiga</span></div>
+    <strong id="kpiHormiga">—</strong>
+    <small id="kpiHormigaDelta" class="card-sub"></small>
+  </div>
+</section>
+
+<section class="grid2">
+  <div class="panel">
+    <div class="panel-head"><h2>Gastos por categoría</h2></div>
+    <div class="chart-box"><canvas id="chartCat"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Ritmo de gasto del mes</h2><span class="legend-mini"><i class="sw now"></i> este mes <i class="sw prev"></i> anterior</span></div>
+    <div class="chart-box"><canvas id="chartDiario"></canvas></div>
+  </div>
+</section>
+
+<section class="grid2">
+  <div class="panel">
+    <div class="panel-head"><h2>Últimos 6 meses</h2><span class="legend-mini"><i class="sw inc"></i> ingresos <i class="sw exp"></i> gastos</span></div>
+    <div class="chart-box"><canvas id="chartMeses"></canvas></div>
+  </div>
+  <div class="panel insights">
+    <div class="panel-head">
+      <h2>🧠 Análisis IA del mes</h2>
+      <button class="btn sm ghost" id="btnInsights" title="Regenerar análisis">↻</button>
+    </div>
+    <div id="insightsBox" class="insights-box"><div class="shimmer"></div><div class="shimmer w70"></div><div class="shimmer w85"></div></div>
+  </div>
+</section>
+
+<section class="grid3">
+  <div class="panel">
+    <div class="panel-head"><h2>🎯 Presupuestos</h2></div>
+    <div id="budgetList" class="budget-list"></div>
+    <details>
+      <summary>+ Fijar presupuesto</summary>
+      <form method="post" action="/presupuesto" class="formstack">
+        <select name="categoria">
+          <option value="">🎯 Total del mes</option>
+          {% for c in cats if c.kind == 'expense' %}<option value="{{ c.name }}">{{ c.emoji }} {{ c.name }}</option>{% endfor %}
+        </select>
+        <input name="limite" placeholder="300 lucas / 300.000" required>
+        <button class="btn">Guardar</button>
+      </form>
+    </details>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>⏰ Cuentas por pagar</h2></div>
+    <ul class="list" id="billList"></ul>
+    <details>
+      <summary>+ Agregar cuenta</summary>
+      <form method="post" action="/bill" class="formstack">
+        <select name="user_id">{% for u in users if u.is_active %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
+        <input name="label" placeholder="Arriendo" required>
+        <input name="monto" placeholder="350 lucas (opcional)">
+        <input name="due_date" type="date" required>
+        <input name="notify_days_before" type="number" value="3" min="0" max="30" title="Avisar días antes">
+        <button class="btn">Agregar</button>
+      </form>
+    </details>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>👥 La familia</h2></div>
+    <div id="personaList" class="persona-list"></div>
+    <details>
+      <summary>Editar sueldos</summary>
+      {% for u in users if u.is_active %}
+      <form class="inline" method="post" action="/sueldo">
+        <input type="hidden" name="user_id" value="{{ u.id }}">
+        <span>{{ u.name.split(' ')[0] }}</span>
+        <input name="monto" placeholder="{{ u.monthly_income or 'sueldo' }}" value="{{ u.monthly_income or '' }}">
+        <button class="btn sm">OK</button>
+      </form>
+      {% endfor %}
+    </details>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Movimientos de {{ mes_nombre }} <span class="count-badge" id="txCount"></span></h2>
+    <div class="tx-tools">
+      <input type="search" id="txSearch" placeholder="Buscar…">
+      <details class="add-tx">
+        <summary class="btn sm">+ Movimiento</summary>
+        <form method="post" action="/tx" class="formstack pop">
+          <select name="user_id">{% for u in users if u.is_active %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
+          <select name="kind"><option value="expense">💸 Gasto</option><option value="income">💰 Ingreso</option></select>
+          <input name="monto" placeholder="15 lucas / 15000" required>
+          <select name="categoria">
+            <option value="">(categoría automática)</option>
+            {% for c in cats %}<option value="{{ c.name }}">{{ c.emoji }} {{ c.name }}</option>{% endfor %}
+          </select>
+          <input name="descripcion" placeholder="Descripción (opcional)">
+          <input name="fecha" type="date" value="{{ today.isoformat() }}">
+          <button class="btn">Guardar</button>
+        </form>
+      </details>
+    </div>
+  </div>
+  <div class="tx-wrap">
+    <table class="tx">
+      <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Persona</th><th class="r">Monto</th><th></th></tr></thead>
+      <tbody id="txBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ──────────────── Modal de edición de movimiento ──────────────── -->
+<div id="txEditModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><b>✏️ Editar movimiento</b><button id="txEditClose" class="btn ghost icon sm">✕</button></div>
+    <form id="txEditForm" class="formstack">
+      <input type="hidden" id="txEditId">
+      <select id="txEditKind"><option value="expense">💸 Gasto</option><option value="income">💰 Ingreso</option></select>
+      <input id="txEditMonto" placeholder="Monto (ej: 15 lucas / 15000)">
+      <select id="txEditCat"></select>
+      <input id="txEditDesc" placeholder="Descripción">
+      <input id="txEditFecha" type="date">
+      <button class="btn" type="submit">Guardar cambios</button>
+    </form>
+  </div>
+</div>
+
+<!-- ──────────────── Chat flotante con el asistente ──────────────── -->
+<button id="chatFab" class="chat-fab" title="Hablar con Fin, tu asistente">🪙</button>
+<div id="chatPanel" class="chat-panel hidden">
+  <div class="chat-head">
+    <div class="chat-title">
+      <span class="chat-avatar">🪙</span>
+      <div><b>Fin</b><small>{{ 'asistente IA · ' + modelo if deepseek else 'modo reglas locales' }}</small></div>
+    </div>
+    <select id="chatUser" title="¿Quién está hablando?">
+      {% for u in users if u.is_active %}<option value="{{ u.id }}">{{ u.name.split(' ')[0] }}</option>{% endfor %}
+    </select>
+    <button id="chatClear" class="btn ghost icon sm" title="Borrar conversación">🗑</button>
+    <button id="chatClose" class="btn ghost icon sm">✕</button>
+  </div>
+  <div id="chatMsgs" class="chat-msgs"></div>
+  <div id="chatSuggest" class="chat-suggest">
+    <button class="chip">gasté 15 lucas en bencina</button>
+    <button class="chip">¿cuánto llevo gastado este mes?</button>
+    <button class="chip">¿en qué hemos gastado más?</button>
+    <button class="chip">el 20 pago el arriendo, 350 lucas</button>
+  </div>
+  <form id="chatForm" class="chat-input">
+    <input id="chatText" placeholder="Escríbele a Fin… ej: pagué 8 lucas de café" autocomplete="off">
+    <button class="btn" type="submit">➤</button>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.DASH = {
+  data: {{ data | tojson }},
+  year: {{ year }}, month: {{ month }},
+  deepseek: {{ 'true' if deepseek else 'false' }},
+  householdId: {{ household.id }},
+  cats: [{% for c in cats %}{"name": {{ c.name|tojson }}, "emoji": {{ (c.emoji or '')|tojson }}, "kind": {{ c.kind|tojson }}}{{ "," if not loop.last }}{% endfor %}],
+};
+</script>
+<script src="/static/app.js"></script>
+{% endblock %}

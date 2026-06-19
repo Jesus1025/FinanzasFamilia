@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/jesus.gonzalez/Desktop/**)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jesus.gonzalez\\\\Desktop\" -Recurse -Force -Depth 3 -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'neep|kit' } | Select-Object FullName, Mode | Format-Table -AutoSize -Wrap)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\jesus.gonzalez\\Desktop\\guias-profes\\app"
+    ]
+  }
+}

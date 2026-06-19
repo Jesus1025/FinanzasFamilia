@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Admin · Finanzas Familia{% endblock %}
+{% block content %}
+
+<div class="admin-head">
+  <h1>🛠️ Panel de administración</h1>
+  {% if deepseek %}<span class="ia-badge on"><span class="dot"></span> IA · {{ modelo }}</span>
+  {% else %}<span class="ia-badge off"><span class="dot"></span> IA off</span>{% endif %}
+  <form method="post" action="/admin/logout"><button class="btn ghost sm">Cerrar sesión</button></form>
+</div>
+
+{% if sin_password %}
+<p class="aviso">⚠️ El panel está <b>abierto</b> porque no definiste <code>ADMIN_PASSWORD</code> en <code>.env</code>. Agrégala antes de exponer la app fuera de tu casa.</p>
+{% endif %}
+
+{% set err = request.query_params.get('error') %}
+{% if err == 'telefono_duplicado' %}
+<p class="aviso error-msg">📵 Ese teléfono ya está registrado en otro perfil (debe ser único entre todas las familias).</p>
+{% elif err == 'usuario_con_movimientos' %}
+<p class="aviso">ℹ️ Ese perfil tiene movimientos registrados, así que se <b>desactivó</b> en vez de eliminarse (el historial se conserva).</p>
+{% elif err == 'solicitud_invalida' %}
+<p class="aviso error-msg">La solicitud o la familia ya no existe.</p>
+{% elif err == 'conflicto_acceso' %}
+<p class="aviso error-msg">No se pudo aprobar: ese correo, teléfono o cuenta de Google ya está en uso por otro perfil.</p>
+{% endif %}
+
+{% if pendientes %}
+<section class="panel pending-panel" style="margin-bottom:16px">
+  <div class="panel-head"><h2>🔔 Solicitudes de acceso ({{ pendientes|length }})</h2></div>
+  <p class="muted" style="font-size:13px;margin:0 0 10px">Entraron con Google y esperan que los conectes a una familia.</p>
+  {% for item in pendientes %}
+  <div class="pending-row">
+    <div class="pending-info">
+      <b>{{ item.p.name }}</b>
+      <span class="muted">{{ item.p.email }}</span>
+      {% if item.familia_solicitada %}<span class="tag owner">pidió: {{ item.familia_solicitada }} (#{{ item.p.requested_household_id }})</span>{% endif %}
+    </div>
+    <form method="post" action="/admin/pending/{{ item.p.id }}/aprobar" class="inline" style="margin:0">
+      <select name="household_id" required>
+        <option value="">Familia…</option>
+        {% for h in households %}
+        <option value="{{ h.id }}" {{ 'selected' if h.id == item.p.requested_household_id else '' }}>{{ h.name }} (#{{ h.id }})</option>
+        {% endfor %}
+      </select>
+      <select name="role"><option value="member">miembro</option><option value="owner">owner</option></select>
+      <button class="btn sm">✅ Aprobar</button>
+    </form>
+    <form method="post" action="/admin/pending/{{ item.p.id }}/rechazar" class="inline-form"
+          onsubmit="return confirm('¿Rechazar el acceso de {{ item.p.email }}?')">
+      <button class="btn sm ghost">Rechazar</button>
+    </form>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="panel" style="margin-bottom:16px">
+  <div class="panel-head"><h2>➕ Nueva familia</h2></div>
+  <form method="post" action="/admin/household" class="inline">
+    <input name="name" placeholder="Ej: Familia González" required style="flex:1">
+    <button class="btn">Crear familia</button>
+  </form>
+  <p class="muted" style="font-size:13px;margin:8px 0 0">Cada familia parte con sus categorías propias. Generale un <b>link de invitación de Telegram</b> para que los miembros se unan solos.</p>
+</section>
+
+{% if telegram %}
+<section class="panel" id="telegramPanel" style="margin-bottom:16px">
+  <div class="panel-head"><h2>🤖 Telegram</h2><span id="telegramStatus" class="tag off">conectando…</span></div>
+  <p id="telegramInfo" class="muted" style="font-size:13px;margin:0">Consultando estado del bot…</p>
+</section>
+<script>
+(async function(){
+  try {
+    const r = await fetch('/admin/telegram/estado');
+    const d = await r.json();
+    const ok = d.ok && d.webhook;
+    document.getElementById('telegramStatus').className = 'tag ' + (ok ? 'owner' : 'off');
+    document.getElementById('telegramStatus').textContent = ok ? 'conectado' : (d.enabled ? 'sin webhook' : 'apagado');
+    if (d.username) {
+      document.getElementById('telegramInfo').textContent = 'Bot @' + d.username + (d.webhook ? ' · webhook: ' + d.webhook : '');
+    } else {
+      document.getElementById('telegramInfo').textContent = d.enabled ? 'Bot no accesible — revisa el token.' : 'Telegram no configurado (TELEGRAM_BOT_TOKEN vacío).';
+    }
+  } catch(e) { document.getElementById('telegramStatus').textContent = 'error'; }
+})();
+</script>
+{% endif %}
+
+{% for f in filas %}
+<section class="panel hh-card">
+  <div class="hh-title">
+    <h3>👨‍👩‍👧 {{ f.hh.name }} <span class="hh-id">#{{ f.hh.id }}</span></h3>
+    <a class="btn sm ghost" href="/?hh={{ f.hh.id }}">Ver dashboard →</a>
+    <div class="hh-stats">
+      <span>{{ f.users | length }} perfil{{ 'es' if f.users|length != 1 else '' }}</span>
+      <span>gastos del mes: <b>{{ f.gastos_mes | clp }}</b></span>
+      <span>disponible: <b>{{ f.disponible | clp }}</b></span>
+    </div>
+    {% if telegram and telegram_bot_username %}
+    <div class="hh-invite">
+      {% if f.hh.invite_code %}
+      <span style="font-size:13px;color:var(--muted);margin-right:8px">🔗 Invitación:</span>
+      <code style="font-size:13px;background:var(--bg2);padding:3px 8px;border-radius:4px">https://t.me/{{ telegram_bot_username }}?start={{ f.hh.invite_code }}</code>
+      <button class="btn sm ghost" onclick="navigator.clipboard.writeText('https://t.me/{{ telegram_bot_username }}?start={{ f.hh.invite_code }}')" title="Copiar link">📋</button>
+      {% endif %}
+      <form method="post" action="/admin/household/{{ f.hh.id }}/invite" class="inline" style="margin:0">
+        <button class="btn sm">{{ '🔄 Regenerar' if f.hh.invite_code else '🔗 Generar link' }}</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <table class="user-table">
+    <thead><tr><th>Nombre</th><th>Teléfono</th><th>Telegram</th><th>Sueldo</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      {% for u in f.users %}
+      <tr>
+        <td><form id="uf{{ u.id }}" method="post" action="/admin/user/{{ u.id }}/update"></form>
+            <input form="uf{{ u.id }}" name="name" value="{{ u.name }}" required></td>
+        <td><input form="uf{{ u.id }}" name="phone" value="{{ u.phone or '' }}" placeholder="569XXXXXXXX"></td>
+        <td>{{ '✅' if u.telegram_chat_id else '—' }}</td>
+        <td><input form="uf{{ u.id }}" name="monthly_income" value="{{ u.monthly_income or '' }}" placeholder="0"></td>
+        <td><select form="uf{{ u.id }}" name="role">
+          <option value="member" {{ 'selected' if u.role != 'owner' else '' }}>miembro</option>
+          <option value="owner" {{ 'selected' if u.role == 'owner' else '' }}>owner</option>
+        </select></td>
+        <td>{% if not u.is_active %}<span class="tag off">inactivo</span>{% else %}<span class="tag owner">activo</span>{% endif %}</td>
+        <td class="acts">
+          <button form="uf{{ u.id }}" class="btn sm" title="Guardar cambios">💾</button>
+          <form class="inline-form" method="post" action="/admin/user/{{ u.id }}/toggle">
+            <button class="btn sm ghost" title="{{ 'Desactivar' if u.is_active else 'Activar' }}">{{ '🚫' if u.is_active else '✅' }}</button>
+          </form>
+          <form class="inline-form" method="post" action="/admin/user/{{ u.id }}/delete"
+                onsubmit="return confirm('¿Eliminar el perfil de {{ u.name }}?')">
+            <button class="btn sm ghost" title="Eliminar">🗑</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <details>
+    <summary>+ Agregar perfil a {{ f.hh.name }}</summary>
+    <form method="post" action="/admin/user" class="inline" style="flex-wrap:wrap">
+      <input type="hidden" name="household_id" value="{{ f.hh.id }}">
+      <input name="name" placeholder="Nombre" required>
+      <input name="phone" placeholder="569XXXXXXXX (WhatsApp)">
+      <input name="monthly_income" placeholder="Sueldo (ej: 900 lucas)">
+      <select name="role"><option value="member">miembro</option><option value="owner">owner</option></select>
+      <button class="btn sm">Agregar</button>
+    </form>
+  </details>
+
+  <details>
+    <summary>⚙️ Renombrar familia · nombre del asistente · eliminar</summary>
+    <div class="inline" style="flex-wrap:wrap">
+      <form method="post" action="/admin/household/{{ f.hh.id }}/rename" class="inline" style="flex:1;flex-wrap:wrap">
+        <input name="name" value="{{ f.hh.name }}" placeholder="Nombre de la familia" style="flex:1;min-width:140px">
+        <input name="assistant_name" value="{{ f.hh.assistant_name or '' }}" placeholder="🪙 Asistente (ej: Fin)" title="Nombre del asistente de WhatsApp para esta familia" style="flex:1;min-width:120px">
+        <button class="btn sm ghost">Guardar</button>
+      </form>
+      <form method="post" action="/admin/household/{{ f.hh.id }}/delete"
+            onsubmit="return confirm('⚠️ Se borrará TODO: perfiles, movimientos y cuentas de {{ f.hh.name }}. ¿Seguro?')">
+        <button class="btn sm danger">Eliminar familia</button>
+      </form>
+    </div>
+  </details>
+</section>
+{% else %}
+<section class="panel center">
+  <p class="muted">Aún no hay familias. Crea la primera arriba 👆</p>
+</section>
+{% endfor %}
+
+{% endblock %}

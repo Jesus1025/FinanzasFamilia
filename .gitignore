@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Base de datos local
+*.db
+*.db-shm
+*.db-wal
+
+# Secretos
+.env
+
+# Node / bridge
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Logs
+logs/
+*.log

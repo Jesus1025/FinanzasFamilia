@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Login admin · Finanzas Familia{% endblock %}
+{% block content %}
+<div class="panel login-box">
+  <h1>🔐 Super admin</h1>
+  <p class="muted">Ingresa la contraseña de administración (<code>ADMIN_PASSWORD</code> del <code>.env</code>).</p>
+  {% if error %}<p class="error-msg">{{ error }}</p>{% endif %}
+  <form method="post" action="/admin/login" class="formstack">
+    <input type="password" name="password" placeholder="Contraseña" autofocus required>
+    <button class="btn">Entrar</button>
+  </form>
+</div>
+{% endblock %}

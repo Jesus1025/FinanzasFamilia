@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Finanzas Familia{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- PWA: instalable en el celular -->
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0b0e1c">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Finanzas">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <a href="/" class="brand"><span class="brand-icon">💸</span> Finanzas<span class="brand-thin">Familia</span></a>
+      {% block household_selector %}{% endblock %}
+    </div>
+    <nav>
+      {% block topnav %}
+      <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Dashboard</a>
+      <a href="/whatsapp" class="{{ 'active' if request.url.path == '/whatsapp' else '' }}">WhatsApp</a>
+      <a href="/admin" class="{{ 'active' if request.url.path.startswith('/admin') else '' }}">Admin</a>
+      {% block ia_badge %}{% endblock %}
+      {% if request.session.get('email') %}
+      <span class="nav-user" title="{{ request.session.get('email') }}">👤 {{ request.session.get('nombre') }}</span>
+      <form method="post" action="/logout" class="inline-form"><button class="linkbtn">Salir</button></form>
+      {% endif %}
+      {% endblock %}
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">Hecho para la familia · datos guardados localmente</footer>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

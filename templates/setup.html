@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Bienvenido · Finanzas Familia{% endblock %}
+{% block content %}
+<div class="panel login-box" style="max-width:460px">
+  <h1>¡Bienvenido! 🚀</h1>
+  <p class="muted">Crea tu primera familia para empezar. Después podrás agregar más familias y perfiles desde el panel <b>Admin</b>.</p>
+  <form method="post" action="/setup" class="formstack" style="text-align:left">
+    <label class="muted" style="font-size:13px">Nombre de la familia</label>
+    <input name="familia" placeholder="Ej: Familia González" required>
+    <label class="muted" style="font-size:13px">Tu nombre</label>
+    <input name="nombre" placeholder="Ej: Jesús" required>
+    <label class="muted" style="font-size:13px">Tu WhatsApp (para hablar con el bot)</label>
+    <input name="phone" placeholder="569XXXXXXXX (opcional)">
+    <label class="muted" style="font-size:13px">Tu sueldo mensual</label>
+    <input name="sueldo" placeholder="Ej: 900 lucas (opcional)">
+    <button class="btn">Crear familia 🎉</button>
+  </form>
+</div>
+{% endblock %}

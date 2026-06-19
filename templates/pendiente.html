@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Esperando acceso · Finanzas Familia{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="20">{% endblock %}
+{% block topnav %}{% endblock %}
+{% block content %}
+<div class="panel login-box" style="max-width:480px">
+  <div class="login-logo">🪙</div>
+  <h1>¡Hola, {{ pending.name }}!</h1>
+  <p class="muted">Tu ingreso fue exitoso. Falta que el administrador apruebe tu acceso y te conecte a tu familia.</p>
+
+  <div class="step-line">
+    <div class="step done"><span class="dot">✓</span> Entraste con Google</div>
+    <div class="step active"><span class="dot">⏳</span> Esperando aprobación</div>
+    <div class="step"><span class="dot">🎉</span> Acceso listo</div>
+  </div>
+
+  <form method="post" action="/pendiente" class="formstack" style="text-align:left;margin-top:8px">
+    <label class="muted" style="font-size:13px">Tu nombre (como aparecerá en la familia)</label>
+    <input name="nombre" value="{{ pending.name }}" required>
+
+    <label class="muted" style="font-size:13px">📱 Tu WhatsApp (con código de país)</label>
+    <input name="phone" value="{{ pending.phone or '' }}" placeholder="569XXXXXXXX" inputmode="tel">
+    <p class="muted" style="font-size:12px">Si lo dejas, el asistente te saludará por WhatsApp apenas te aprueben y podrás anotar tus gastos desde el chat. 🪙</p>
+
+    <label class="muted" style="font-size:13px">¿A qué familia quieres unirte?</label>
+    {% if households %}
+    <select name="household_id">
+      <option value="">— Que el admin decida —</option>
+      {% for h in households %}
+      <option value="{{ h.id }}" {{ 'selected' if h.id == pending.requested_household_id else '' }}>{{ h.name }} (#{{ h.id }})</option>
+      {% endfor %}
+    </select>
+    <p class="muted" style="font-size:12px">El número (#) distingue familias con el mismo nombre. Si no sabes cuál, déjalo en automático.</p>
+    {% else %}
+    <p class="muted">Aún no hay familias creadas. El administrador creará la tuya.</p>
+    {% endif %}
+    <button class="btn">Guardar mi solicitud</button>
+  </form>
+
+  <div class="waiting">
+    <span class="pulse"></span> Esta página se actualiza sola cuando te aprueben…
+  </div>
+
+  <p class="login-admin">
+    <span class="muted">{{ pending.email }}</span> ·
+    <form method="post" action="/logout" style="display:inline"><button class="linkbtn">Cerrar sesión</button></form>
+  </p>
+</div>
+{% endblock %}

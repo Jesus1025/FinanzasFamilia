@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finanzas Familia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- PWA: instalable en el celular -->
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0b0e1c">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Finanzas">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <a href="/" class="brand"><span class="brand-icon">💸</span> Finanzas<span class="brand-thin">Familia</span></a>
+      
+
+<div class="hh-select">
+  <select id="hhSelect" onchange="location.href='/?hh='+this.value" title="Cambiar de familia">
+    
+    <option value="1" selected>👨‍👩‍👧 Familia</option>
+    
+    <option value="2" >👨‍👩‍👧 Familia Leyton</option>
+    
+  </select>
+</div>
+
+
+    </div>
+    <nav>
+      
+      <a href="/" class="active">Dashboard</a>
+      <a href="/whatsapp" class="">WhatsApp</a>
+      <a href="/admin" class="">Admin</a>
+      
+
+<span class="ia-badge on" title="Asistente IA activo (deepseek-chat)"><span class="dot"></span> IA</span>
+
+
+      
+      
+    </nav>
+  </header>
+  <main class="container">
+    
+
+<div class="monthnav">
+  <a class="btn ghost icon" href="/?year=2026&month=5">←</a>
+  <h1>Junio <span class="year">2026</span></h1>
+  <a class="btn ghost icon" href="/?year=2026&month=7">→</a>
+  <div class="person-filter" id="personFilter">
+    <button class="chip active" data-u="">Todos</button>
+    
+    <button class="chip" data-u="1">constanza</button>
+    
+    <button class="chip" data-u="2">Persona</button>
+    
+    <button class="chip" data-u="5">Ana</button>
+    
+    <button class="chip" data-u="6">jesus</button>
+    
+    <button class="chip" data-u="7">jesus</button>
+    
+    <button class="chip" data-u="8">jesus</button>
+    
+  </div>
+  <a class="btn ghost" href="/api/export.xlsx?year=2026&month=6">⬇ Excel</a>
+  <a class="btn ghost" href="/api/export.pdf?year=2026&month=6">⬇ PDF</a>
+</div>
+
+
+
+
+
+<section class="cards">
+  <div class="card income">
+    <div class="card-top"><span class="card-ico">💰</span><span>Ingresos</span></div>
+    <strong id="kpiIngresos">—</strong>
+    <small id="kpiIngresosSub" class="card-sub"></small>
+  </div>
+  <div class="card expense">
+    <div class="card-top"><span class="card-ico">💸</span><span>Gastos</span></div>
+    <strong id="kpiGastos">—</strong>
+    <small id="kpiGastosDelta" class="card-sub"></small>
+  </div>
+  <div class="card balance">
+    <div class="card-top"><span class="card-ico">🟢</span><span>Te queda</span></div>
+    <strong id="kpiDisponible">—</strong>
+    <small id="kpiDisponibleSub" class="card-sub"></small>
+  </div>
+  <div class="card ant">
+    <div class="card-top"><span class="card-ico">🐜</span><span>Gasto hormiga</span></div>
+    <strong id="kpiHormiga">—</strong>
+    <small id="kpiHormigaDelta" class="card-sub"></small>
+  </div>
+</section>
+
+<section class="grid2">
+  <div class="panel">
+    <div class="panel-head"><h2>Gastos por categoría</h2></div>
+    <div class="chart-box"><canvas id="chartCat"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Ritmo de gasto del mes</h2><span class="legend-mini"><i class="sw now"></i> este mes <i class="sw prev"></i> anterior</span></div>
+    <div class="chart-box"><canvas id="chartDiario"></canvas></div>
+  </div>
+</section>
+
+<section class="grid2">
+  <div class="panel">
+    <div class="panel-head"><h2>Últimos 6 meses</h2><span class="legend-mini"><i class="sw inc"></i> ingresos <i class="sw exp"></i> gastos</span></div>
+    <div class="chart-box"><canvas id="chartMeses"></canvas></div>
+  </div>
+  <div class="panel insights">
+    <div class="panel-head">
+      <h2>🧠 Análisis IA del mes</h2>
+      <button class="btn sm ghost" id="btnInsights" title="Regenerar análisis">↻</button>
+    </div>
+    <div id="insightsBox" class="insights-box"><div class="shimmer"></div><div class="shimmer w70"></div><div class="shimmer w85"></div></div>
+  </div>
+</section>
+
+<section class="grid3">
+  <div class="panel">
+    <div class="panel-head"><h2>🎯 Presupuestos</h2></div>
+    <div id="budgetList" class="budget-list"></div>
+    <details>
+      <summary>+ Fijar presupuesto</summary>
+      <form method="post" action="/presupuesto" class="formstack">
+        <select name="categoria">
+          <option value="">🎯 Total del mes</option>
+          <option value="Arriendo">🏠 Arriendo</option><option value="Bencina">⛽ Bencina</option><option value="Café">☕ Café</option><option value="Comida/Restaurant">🍔 Comida/Restaurant</option><option value="Compras">🛍️ Compras</option><option value="Cuentas/Servicios">💡 Cuentas/Servicios</option><option value="Delivery">🛵 Delivery</option><option value="Educación">📚 Educación</option><option value="Entretención">🎬 Entretención</option><option value="Mascotas">🐾 Mascotas</option><option value="Otros">📦 Otros</option><option value="Salud">💊 Salud</option><option value="Supermercado">🛒 Supermercado</option><option value="Suscripciones">📺 Suscripciones</option><option value="Transporte">🚌 Transporte</option>
+        </select>
+        <input name="limite" placeholder="300 lucas / 300.000" required>
+        <button class="btn">Guardar</button>
+      </form>
+    </details>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>⏰ Cuentas por pagar</h2></div>
+    <ul class="list" id="billList"></ul>
+    <details>
+      <summary>+ Agregar cuenta</summary>
+      <form method="post" action="/bill" class="formstack">
+        <select name="user_id"><option value="1">constanza sanhueza</option><option value="2">Persona 2</option><option value="5">Ana WA</option><option value="6">jesus gonzalez</option><option value="7">jesus gonzalez</option><option value="8">jesus gonzalez</option></select>
+        <input name="label" placeholder="Arriendo" required>
+        <input name="monto" placeholder="350 lucas (opcional)">
+        <input name="due_date" type="date" required>
+        <input name="notify_days_before" type="number" value="3" min="0" max="30" title="Avisar días antes">
+        <button class="btn">Agregar</button>
+      </form>
+    </details>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>👥 La familia</h2></div>
+    <div id="personaList" class="persona-list"></div>
+    <details>
+      <summary>Editar sueldos</summary>
+      
+      <form class="inline" method="post" action="/sueldo">
+        <input type="hidden" name="user_id" value="1">
+        <span>constanza</span>
+        <input name="monto" placeholder="900000" value="900000">
+        <button class="btn sm">OK</button>
+      </form>
+      
+      <form class="inline" method="post" action="/sueldo">
+        <input type="hidden" name="user_id" value="2">
+        <span>Persona</span>
+        <input name="monto" placeholder="750000" value="750000">
+        <button class="btn sm">OK</button>
+      </form>
+      
+      <form class="inline" method="post" action="/sueldo">
+        <input type="hidden" name="user_id" value="5">
+        <span>Ana</span>
+        <input name="monto" placeholder="sueldo" value="">
+        <button class="btn sm">OK</button>
+      </form>
+      
+      <form class="inline" method="post" action="/sueldo">
+        <input type="hidden" name="user_id" value="6">
+        <span>jesus</span>
+        <input name="monto" placeholder="900000" value="900000">
+        <button class="btn sm">OK</button>
+      </form>
+      
+      <form class="inline" method="post" action="/sueldo">
+        <input type="hidden" name="user_id" value="7">
+        <span>jesus</span>
+        <input name="monto" placeholder="sueldo" value="">
+        <button class="btn sm">OK</button>
+      </form>
+      
+      <form class="inline" method="post" action="/sueldo">
+        <input type="hidden" name="user_id" value="8">
+        <span>jesus</span>
+        <input name="monto" placeholder="sueldo" value="">
+        <button class="btn sm">OK</button>
+      </form>
+      
+    </details>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Movimientos de Junio <span class="count-badge" id="txCount"></span></h2>
+    <div class="tx-tools">
+      <input type="search" id="txSearch" placeholder="Buscar…">
+      <details class="add-tx">
+        <summary class="btn sm">+ Movimiento</summary>
+        <form method="post" action="/tx" class="formstack pop">
+          <select name="user_id"><option value="1">constanza sanhueza</option><option value="2">Persona 2</option><option value="5">Ana WA</option><option value="6">jesus gonzalez</option><option value="7">jesus gonzalez</option><option value="8">jesus gonzalez</option></select>
+          <select name="kind"><option value="expense">💸 Gasto</option><option value="income">💰 Ingreso</option></select>
+          <input name="monto" placeholder="15 lucas / 15000" required>
+          <select name="categoria">
+            <option value="">(categoría automática)</option>
+            <option value="Arriendo">🏠 Arriendo</option><option value="Bencina">⛽ Bencina</option><option value="Café">☕ Café</option><option value="Comida/Restaurant">🍔 Comida/Restaurant</option><option value="Compras">🛍️ Compras</option><option value="Cuentas/Servicios">💡 Cuentas/Servicios</option><option value="Delivery">🛵 Delivery</option><option value="Educación">📚 Educación</option><option value="Entretención">🎬 Entretención</option><option value="Mascotas">🐾 Mascotas</option><option value="Otros">📦 Otros</option><option value="Salud">💊 Salud</option><option value="Supermercado">🛒 Supermercado</option><option value="Suscripciones">📺 Suscripciones</option><option value="Transporte">🚌 Transporte</option><option value="Bono/Extra">🎁 Bono/Extra</option><option value="Otros ingresos">➕ Otros ingresos</option><option value="Sueldo">💰 Sueldo</option>
+          </select>
+          <input name="descripcion" placeholder="Descripción (opcional)">
+          <input name="fecha" type="date" value="2026-06-13">
+          <button class="btn">Guardar</button>
+        </form>
+      </details>
+    </div>
+  </div>
+  <div class="tx-wrap">
+    <table class="tx">
+      <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Persona</th><th class="r">Monto</th><th></th></tr></thead>
+      <tbody id="txBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ──────────────── Modal de edición de movimiento ──────────────── -->
+<div id="txEditModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><b>✏️ Editar movimiento</b><button id="txEditClose" class="btn ghost icon sm">✕</button></div>
+    <form id="txEditForm" class="formstack">
+      <input type="hidden" id="txEditId">
+      <select id="txEditKind"><option value="expense">💸 Gasto</option><option value="income">💰 Ingreso</option></select>
+      <input id="txEditMonto" placeholder="Monto (ej: 15 lucas / 15000)">
+      <select id="txEditCat"></select>
+      <input id="txEditDesc" placeholder="Descripción">
+      <input id="txEditFecha" type="date">
+      <button class="btn" type="submit">Guardar cambios</button>
+    </form>
+  </div>
+</div>
+
+<!-- ──────────────── Chat flotante con el asistente ──────────────── -->
+<button id="chatFab" class="chat-fab" title="Hablar con Fin, tu asistente">🪙</button>
+<div id="chatPanel" class="chat-panel hidden">
+  <div class="chat-head">
+    <div class="chat-title">
+      <span class="chat-avatar">🪙</span>
+      <div><b>Fin</b><small>asistente IA · deepseek-chat</small></div>
+    </div>
+    <select id="chatUser" title="¿Quién está hablando?">
+      <option value="1">constanza</option><option value="2">Persona</option><option value="5">Ana</option><option value="6">jesus</option><option value="7">jesus</option><option value="8">jesus</option>
+    </select>
+    <button id="chatClear" class="btn ghost icon sm" title="Borrar conversación">🗑</button>
+    <button id="chatClose" class="btn ghost icon sm">✕</button>
+  </div>
+  <div id="chatMsgs" class="chat-msgs"></div>
+  <div id="chatSuggest" class="chat-suggest">
+    <button class="chip">gasté 15 lucas en bencina</button>
+    <button class="chip">¿cuánto llevo gastado este mes?</button>
+    <button class="chip">¿en qué hemos gastado más?</button>
+    <button class="chip">el 20 pago el arriendo, 350 lucas</button>
+  </div>
+  <form id="chatForm" class="chat-input">
+    <input id="chatText" placeholder="Escríbele a Fin… ej: pagué 8 lucas de café" autocomplete="off">
+    <button class="btn" type="submit">➤</button>
+  </form>
+</div>
+
+
+  </main>
+  <footer class="footer">Hecho para la familia · datos guardados localmente</footer>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+    }
+  </script>
+  
+<script>
+window.DASH = {
+  data: {"anterior": {"disponible": 0, "gastos": 0, "hormigas": 0, "ingresos": 0}, "bills": [{"dias": -12, "id": 2, "label": "abcdin", "monto": 250000, "vence": "2026-06-01"}, {"dias": 7, "id": 1, "label": "Tarjeta de cr\u00e9dito", "monto": 120000, "vence": "2026-06-20"}], "dia_hoy": 13, "diario": {"actual": [0, 0, 18000, 24990, 47990, 397990, 397990, 410890, 434390, 476390, 476390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390, 479390], "anterior": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}, "es_mes_actual": true, "hoy": "2026-06-13", "mes_nombre": "Junio", "month": 6, "por_categoria": [{"emoji": "\ud83c\udfe0", "is_ant": false, "nombre": "Arriendo", "total": 350000}, {"emoji": "\ud83d\uded2", "is_ant": false, "nombre": "Supermercado", "total": 42000}, {"emoji": "\ud83d\udca1", "is_ant": false, "nombre": "Cuentas/Servicios", "total": 23000}, {"emoji": "\ud83d\udc8a", "is_ant": false, "nombre": "Salud", "total": 18000}, {"emoji": "\u26fd", "is_ant": false, "nombre": "Bencina", "total": 15000}, {"emoji": "\ud83d\udef5", "is_ant": true, "nombre": "Delivery", "total": 12900}, {"emoji": "\u2615", "is_ant": true, "nombre": "Caf\u00e9", "total": 11500}, {"emoji": "\ud83d\udcfa", "is_ant": true, "nombre": "Suscripciones", "total": 6990}], "por_persona": [{"nombre": "constanza sanhueza", "total": 413990}, {"nombre": "Persona 2", "total": 62400}, {"nombre": "jesus gonzalez", "total": 3000}], "presupuestos": [{"categoria": "Delivery", "emoji": "\ud83d\udef5", "gastado": 12900, "id": 1, "limite": 100000, "pct": 13}], "resumen": {"bills_pendientes": 370000, "disponible": 1750610, "gastos": 479390, "hormigas": 31390, "ingresos": 2600000, "ingresos_extra": 50000, "sueldos": 2550000}, "serie_meses": [{"gastos": 0, "ingresos": 0, "label": "Ene 26", "month": 1, "year": 2026}, {"gastos": 0, "ingresos": 0, "label": "Feb 26", "month": 2, "year": 2026}, {"gastos": 0, "ingresos": 0, "label": "Mar 26", "month": 3, "year": 2026}, {"gastos": 0, "ingresos": 0, "label": "Abr 26", "month": 4, "year": 2026}, {"gastos": 0, "ingresos": 0, "label": "May 26", "month": 5, "year": 2026}, {"gastos": 479390, "ingresos": 2600000, "label": "Jun 26", "month": 6, "year": 2026}], "txs": [{"categoria": "Caf\u00e9", "descripcion": "caf\u00e9", "emoji": "\u2615", "fecha": "2026-06-12", "fuente": "ia", "id": 10, "kind": "expense", "monto": 3000, "persona": "jesus gonzalez"}, {"categoria": "Supermercado", "descripcion": "Compra semanal", "emoji": "\ud83d\uded2", "fecha": "2026-06-10", "fuente": "manual", "id": 1, "kind": "expense", "monto": 42000, "persona": "constanza sanhueza"}, {"categoria": "Caf\u00e9", "descripcion": "Caf\u00e9 con la amiga", "emoji": "\u2615", "fecha": "2026-06-09", "fuente": "manual", "id": 3, "kind": "expense", "monto": 8500, "persona": "Persona 2"}, {"categoria": "Bencina", "descripcion": "Bencina auto", "emoji": "\u26fd", "fecha": "2026-06-09", "fuente": "manual", "id": 2, "kind": "expense", "monto": 15000, "persona": "constanza sanhueza"}, {"categoria": "Delivery", "descripcion": "PedidosYa", "emoji": "\ud83d\udef5", "fecha": "2026-06-08", "fuente": "manual", "id": 4, "kind": "expense", "monto": 12900, "persona": "Persona 2"}, {"categoria": "Bono/Extra", "descripcion": "Bono puntualidad", "emoji": "\ud83c\udf81", "fecha": "2026-06-07", "fuente": "manual", "id": 9, "kind": "income", "monto": 50000, "persona": "Persona 2"}, {"categoria": "Arriendo", "descripcion": "Arriendo depto", "emoji": "\ud83c\udfe0", "fecha": "2026-06-06", "fuente": "manual", "id": 5, "kind": "expense", "monto": 350000, "persona": "constanza sanhueza"}, {"categoria": "Cuentas/Servicios", "descripcion": "Cuenta de luz", "emoji": "\ud83d\udca1", "fecha": "2026-06-05", "fuente": "manual", "id": 6, "kind": "expense", "monto": 23000, "persona": "Persona 2"}, {"categoria": "Suscripciones", "descripcion": "Spotify", "emoji": "\ud83d\udcfa", "fecha": "2026-06-04", "fuente": "manual", "id": 7, "kind": "expense", "monto": 6990, "persona": "constanza sanhueza"}, {"categoria": "Salud", "descripcion": "Farmacia", "emoji": "\ud83d\udc8a", "fecha": "2026-06-03", "fuente": "manual", "id": 8, "kind": "expense", "monto": 18000, "persona": "Persona 2"}], "year": 2026},
+  year: 2026, month: 6,
+  deepseek: true,
+  householdId: 1,
+  cats: [{"name": "Arriendo", "emoji": "\ud83c\udfe0", "kind": "expense"},{"name": "Bencina", "emoji": "\u26fd", "kind": "expense"},{"name": "Caf\u00e9", "emoji": "\u2615", "kind": "expense"},{"name": "Comida/Restaurant", "emoji": "\ud83c\udf54", "kind": "expense"},{"name": "Compras", "emoji": "\ud83d\udecd\ufe0f", "kind": "expense"},{"name": "Cuentas/Servicios", "emoji": "\ud83d\udca1", "kind": "expense"},{"name": "Delivery", "emoji": "\ud83d\udef5", "kind": "expense"},{"name": "Educaci\u00f3n", "emoji": "\ud83d\udcda", "kind": "expense"},{"name": "Entretenci\u00f3n", "emoji": "\ud83c\udfac", "kind": "expense"},{"name": "Mascotas", "emoji": "\ud83d\udc3e", "kind": "expense"},{"name": "Otros", "emoji": "\ud83d\udce6", "kind": "expense"},{"name": "Salud", "emoji": "\ud83d\udc8a", "kind": "expense"},{"name": "Supermercado", "emoji": "\ud83d\uded2", "kind": "expense"},{"name": "Suscripciones", "emoji": "\ud83d\udcfa", "kind": "expense"},{"name": "Transporte", "emoji": "\ud83d\ude8c", "kind": "expense"},{"name": "Bono/Extra", "emoji": "\ud83c\udf81", "kind": "income"},{"name": "Otros ingresos", "emoji": "\u2795", "kind": "income"},{"name": "Sueldo", "emoji": "\ud83d\udcb0", "kind": "income"}],
+};
+</script>
+<script src="/static/app.js"></script>
+
+</body>
+</html>

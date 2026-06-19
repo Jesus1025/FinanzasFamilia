@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Conectar WhatsApp{% endblock %}
+{% block content %}
+<div class="panel center">
+  <h1>Conectar WhatsApp</h1>
+  <p class="muted">Escanea el código QR desde el WhatsApp del número que será el "bot" de la familia
+  (Ajustes → Dispositivos vinculados → Vincular dispositivo).</p>
+
+  <div id="estado" class="badge">Sin conectar</div>
+  <div id="qrbox" class="qrbox"></div>
+
+  <div class="row">
+    <button class="btn" id="btnStart">Conectar / Mostrar QR</button>
+    <button class="btn ghost" id="btnLogout">Desconectar</button>
+  </div>
+  <p class="muted" id="numero"></p>
+</div>
+
+<script>
+let timer = null;
+const estado = document.getElementById('estado');
+const qrbox = document.getElementById('qrbox');
+const numero = document.getElementById('numero');
+
+async function poll() {
+  try {
+    const r = await fetch('/whatsapp/qr/estado');
+    const d = await r.json();
+    estado.textContent = ({
+      conectado: '✅ Conectado', qr: '📷 Escanea el QR', iniciando: '⏳ Iniciando…',
+      desconectado: 'Sin conectar', sin_puente: '⚠️ El puente no está corriendo'
+    })[d.estado] || d.estado;
+    estado.className = 'badge ' + (d.estado === 'conectado' ? 'ok' : (d.estado === 'sin_puente' ? 'bad' : ''));
+    qrbox.innerHTML = d.qr ? `<img src="${d.qr}" alt="QR">` : '';
+    numero.textContent = d.numero ? ('Número: ' + d.numero) : '';
+    if (d.estado === 'conectado' && timer) { clearInterval(timer); timer = null; }
+  } catch (e) {}
+}
+
+document.getElementById('btnStart').onclick = async () => {
+  await fetch('/whatsapp/qr/start', { method: 'POST' });
+  if (!timer) timer = setInterval(poll, 2500);
+  poll();
+};
+document.getElementById('btnLogout').onclick = async () => {
+  await fetch('/whatsapp/qr/logout', { method: 'POST' });
+  poll();
+};
+poll();
+</script>
+{% endblock %}

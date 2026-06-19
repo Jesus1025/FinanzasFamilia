@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"GET / -> %{http_code}\\\\n\" http://localhost:8088/)",
+      "Bash(curl -s -o /dev/null -w \"GET /admin/login -> %{http_code}\\\\n\" http://localhost:8088/admin/login)",
+      "Bash(curl -s \"http://localhost:8088/api/ia/status\")",
+      "Bash(curl -s \"http://localhost:8088/api/dashboard-data\")",
+      "Bash(curl -s -X POST http://localhost:8088/chat -H \"Content-Type: application/json\" -d \"{\\\\\"message\\\\\": \\\\\"gaste 12 lucas en bencina y 5 lucas en cafe\\\\\", \\\\\"user_id\\\\\": 1, \\\\\"history\\\\\": []}\" --max-time 90)",
+      "Bash(curl -s -X POST http://localhost:8088/chat -H \"Content-Type: application/json\" -d \"{\\\\\"message\\\\\": \\\\\"cuanto llevo gastado yo este mes y en que?\\\\\", \\\\\"user_id\\\\\": 2, \\\\\"history\\\\\": []}\" --max-time 90)",
+      "Bash(curl -s \"http://localhost:8088/api/insights\" --max-time 90)",
+      "Bash(cd \"c:/Users/jesus.gonzalez/Desktop/finanzas-familia\")",
+      "Bash(curl -s -b /tmp/finck.txt -X POST http://localhost:8088/tx -d \"user_id=1&kind=expense&monto=9990&categoria=&descripcion=prueba borrar&fecha=2026-06-11\" -o /dev/null -w \"POST /tx -> %{http_code}\\\\n\")",
+      "Bash(.venv/Scripts/python.exe -c \"import sqlite3; print\\(sqlite3.connect\\('finanzas.db'\\).execute\\('select max\\(id\\) from transactions'\\).fetchone\\(\\)[0]\\)\")",
+      "Bash(echo 'tx creado id=__TRACKED_VAR__')",
+      "Bash(curl -s -b /tmp/finck.txt -X POST http://localhost:8088/api/tx/__TRACKED_VAR__/delete)",
+      "PowerShell($dest = \"$env:LOCALAPPDATA\\\\Programs\\\\Tesseract-OCR\\\\tessdata\\\\spa.traineddata\"; Write-Output \"Descargando idioma español...\"; try { Invoke-WebRequest -Uri \"https://github.com/tesseract-ocr/tessdata/raw/main/spa.traineddata\" -OutFile $dest -ErrorAction Stop; $kb = [math]::Round\\(\\(Get-Item $dest\\).Length / 1MB, 1\\); Write-Output \"OK descargado: $dest \\($kb MB\\)\" } catch { Write-Output \"ERROR descarga: $_\" }; & \"$env:LOCALAPPDATA\\\\Programs\\\\Tesseract-OCR\\\\tesseract.exe\" --list-langs 2>&1)",
+      "PowerShell(cd \"$env:USERPROFILE\\\\Desktop\\\\PYTHONLECTORPDF\"; .venv\\\\Scripts\\\\python.exe _gen_escaneado.py; \"--- EJECUTANDO EXTRACTOR SOBRE EL ESCANEADO ---\"; \"\" | & \".\\\\Extraer PDF.bat\" \"factura_escaneada.pdf\" 2>&1 | Select-String \"OCR|Página|Leyendo|guardado|Listo|disponible\")",
+      "Bash(FIN_API_URL=http://localhost:8088 BRIDGE_TOKEN=bridge-dev-token BRIDGE_PORT=8099 node index.js)"
+    ]
+  }
+}
