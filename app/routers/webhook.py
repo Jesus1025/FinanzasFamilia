@@ -6,6 +6,9 @@ Se conserva el endpoint /bridge por retrocompatibilidad mientras migran los usua
 from __future__ import annotations
 
 import datetime as _dt
+import io
+import os
+import tempfile
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -47,24 +50,29 @@ async def telegram_webhook(
     chat = msg.get("chat") or {}
     chat_id = str(chat.get("id") or "")
     text = (msg.get("text") or "").strip()
+    document = msg.get("document")
     update_id = update.get("update_id")
 
-    if not chat_id or not text:
+    # Sin texto y sin documento: ignorar (podría ser sticker, audio, etc.)
+    if not chat_id or (not text and not document):
         return JSONResponse({"ok": True})
 
     # Deduplicación: Telegram puede reenviar el mismo update.
-    from ..db import engine
     existente = db.scalar(
         select(WaMessage).where(WaMessage.wa_message_id == f"tg-{update_id}")
     )
     if existente:
         return JSONResponse({"ok": True})
+    caption = (msg.get("caption") or "").strip()
     db.add(WaMessage(wa_message_id=f"tg-{update_id}", direction="in",
-                     phone=chat_id, body=text))
+                     phone=chat_id, body=text or f"[documento: {caption}]"))
     db.commit()
 
     # Despachar en background para responder dentro de los 10 s de Telegram.
-    background.add_task(_procesar_telegram, chat_id, text, msg, update_id)
+    if document:
+        background.add_task(_procesar_documento, chat_id, document, caption, update_id)
+    else:
+        background.add_task(_procesar_telegram, chat_id, text, msg, update_id)
     return JSONResponse({"ok": True})
 
 
@@ -163,6 +171,161 @@ def _vincular_o_crear(db: Session, chat_id: str, msg: dict, hh: Household) -> Us
     db.commit()
     db.refresh(u)
     return u
+
+
+# ---------------------------------------------------------------------------
+# Procesamiento de documentos (importación masiva vía Telegram)
+# ---------------------------------------------------------------------------
+async def _procesar_documento(chat_id: str, document: dict, caption: str,
+                               update_id: int | None) -> None:
+    """Descarga un archivo .txt/.csv de Telegram, lo parsea con IA, registra
+    todos los movimientos y devuelve el Excel actualizado."""
+    from ..db import SessionLocal
+
+    file_id = document.get("file_id")
+    file_name = (document.get("file_name") or "documento.txt").lower()
+
+    if not file_id or not file_name.endswith((".txt", ".csv", ".tsv")):
+        await tg.enviar_texto(chat_id,
+            "📎 Solo proceso archivos <b>.txt</b> o <b>.csv</b> con tus movimientos.\n"
+            "Ejemplo de formato:\n"
+            "<code>15/06 Supermercado 45.990\n16/06 Copec 38.500\n17/06 Farmacia 12.990</code>")
+        return
+
+    await tg.enviar_texto(chat_id, "⏳ Descargando y analizando tu archivo…")
+
+    contenido = await tg.descargar_archivo(file_id)
+    if not contenido:
+        await tg.enviar_texto(chat_id, "😕 No pude descargar el archivo. ¿Probás de nuevo?")
+        return
+
+    try:
+        texto = contenido.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            texto = contenido.decode("latin-1")
+        except UnicodeDecodeError:
+            await tg.enviar_texto(chat_id, "😕 No pude leer el archivo. Asegurate de que esté en formato texto (UTF-8).")
+            return
+
+    db = SessionLocal()
+    try:
+        user = db.scalars(select(User).where(User.telegram_chat_id == chat_id)).first()
+        if not user:
+            await tg.enviar_texto(chat_id, "👋 Primero vinculá tu cuenta. Pedile al admin el link de invitación.")
+            return
+
+        await tg.enviar_texto(chat_id, f"📋 Leí {len(texto.splitlines())} líneas. Analizando con IA…")
+
+        # Llamar al agente IA con un prompt de importación masiva
+        resultado = await _importar_masivo(db, user, texto)
+
+        # Generar Excel y enviarlo
+        excel_path = await _generar_excel_para_envio(user.household_id)
+        if excel_path:
+            await tg.enviar_documento(chat_id, excel_path,
+                caption=f"📊 Excel actualizado — {resultado['resumen']}",
+                filename=f"finanzas-{_dt.date.today().isoformat()}.xlsx")
+            os.unlink(excel_path)
+
+        await tg.enviar_texto(chat_id, resultado["reply"])
+    except Exception as e:
+        log.warning("Error procesando documento (%s): %s", chat_id, e)
+        await tg.enviar_texto(chat_id, "😕 Tuvimos un error procesando el archivo. ¿Probás de nuevo?")
+    finally:
+        db.close()
+
+
+async def _importar_masivo(db: Session, user: User, texto: str) -> dict:
+    """Envía el texto del archivo al agente IA para registro masivo."""
+    today = _dt.date.today()
+    data = finanzas.resumen_mes(db, user.household, today.year, today.month)
+    cats = finanzas.categorias(db, user.household_id)
+    cats_gasto = ", ".join(c.name for c in cats if c.kind == "expense")
+
+    prompt = f"""Eres el asistente de finanzas de {user.household.name}. Recibiste un archivo de texto con movimientos bancarios o de gastos. Tu tarea es EXTRAER y REGISTRAR CADA movimiento.
+
+REGLAS:
+1. Por cada línea del archivo que sea un gasto o ingreso, llama a registrar_movimiento.
+2. Si una línea no es un movimiento (encabezado, saldo, resumen), ignórala.
+3. Las fechas pueden estar en formato DD/MM, DD/MM/AAAA o YYYY-MM-DD. Si no hay año, asumí {today.year}.
+4. Si el monto está en negativo (-) o entre paréntesis, es un gasto.
+5. Si no podés identificar la categoría exacta, usá la que mejor calce.
+6. Cada llamado a registrar_movimiento debe incluir: kind, amount, category, description, date.
+7. Si hay descripciones largas, resumilas a máximo 80 caracteres.
+
+HOY: {today.isoformat()}
+FAMILIA: {user.household.name}
+CATEGORÍAS: {cats_gasto}
+MONEDA: peso chileno (CLP). Montos en formato chileno: 1.000 = mil, 45.990 = cuarenta y cinco mil novecientos noventa.
+
+DATOS DEL ARCHIVO:
+{texto[:8000]}
+
+Después de registrar todo, responde con un RESUMEN así:
+✅ Importación completada: X movimientos registrados.
+💰 Total gastos: $X
+📂 Categorías: X en supermercado, X en bencina, etc.
+⚠️ Dudas: (si algo no quedó claro)"""
+
+    from ..services import ia as ia_service
+    try:
+        historial = [{"role": "user", "content": prompt}]
+        out = await ia_service.conversar(db, user, historial, canal="telegram")
+        return {"reply": out.get("reply", "✅ Importación procesada."),
+                "resumen": f"{len(out.get('actions', []))} movimientos"}
+    except Exception:
+        return {"reply": "✅ Archivo procesado. Revisá tu dashboard o el Excel adjunto.", "resumen": "completado"}
+
+
+async def _generar_excel_para_envio(household_id: int) -> str | None:
+    """Genera un archivo Excel temporal con los datos de la familia."""
+    from ..db import SessionLocal
+    from openpyxl import Workbook
+    from ..money import format_clp
+
+    db = SessionLocal()
+    try:
+        from ..models import Household
+        hh = db.get(Household, household_id)
+        if not hh:
+            return None
+
+        today = _dt.date.today()
+        r = finanzas.resumen_mes(db, hh, today.year, today.month)
+        txs = finanzas.transacciones_mes(db, hh, today.year, today.month)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Movimientos"
+        ws.append(["Fecha", "Tipo", "Categoría", "Descripción", "Persona", "Monto"])
+        total_gasto = 0
+        total_ingreso = 0
+        for t in txs:
+            es_gasto = t.kind == "expense"
+            if es_gasto:
+                total_gasto += t.amount
+            else:
+                total_ingreso += t.amount
+            ws.append([
+                t.occurred_at.isoformat(),
+                "Gasto" if es_gasto else "Ingreso",
+                t.category.name if t.category else "",
+                t.description or "",
+                t.user.name if t.user else "",
+                t.amount,
+            ])
+        ws.append([])
+        ws.append(["", "", "", "", "Total Ingresos", total_ingreso])
+        ws.append(["", "", "", "", "Total Gastos", total_gasto])
+        ws.append(["", "", "", "", "Disponible", r["disponible"]])
+
+        fd, path = tempfile.mkstemp(suffix=".xlsx", prefix="finanzas_")
+        os.close(fd)
+        wb.save(path)
+        return path
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------

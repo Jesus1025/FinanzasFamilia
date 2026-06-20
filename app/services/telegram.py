@@ -13,6 +13,7 @@ escribió primero (un bot NO puede iniciar conversaciones).
 from __future__ import annotations
 
 import secrets
+import tempfile
 
 import httpx
 
@@ -23,6 +24,7 @@ log = get_logger("telegram")
 
 # 4096 caracteres por mensaje (límite de la Bot API).
 _LIMITE_TEXTO = 4096
+_MAX_DESCARGAR = 5 * 1024 * 1024  # 5 MB máximo para archivos
 
 _bot_info: dict | None = None
 
@@ -153,3 +155,55 @@ def link_invitacion(codigo: str) -> str | None:
     if not username:
         return None
     return f"https://t.me/{username}?start={codigo}"
+
+
+# ---------------------------------------------------------------------------
+# Manejo de archivos (descargar de Telegram, enviar documentos)
+# ---------------------------------------------------------------------------
+async def descargar_archivo(file_id: str) -> bytes | None:
+    """Descarga un archivo de Telegram por su file_id. Respeta el límite de 5 MB."""
+    if not config.TELEGRAM_ENABLED:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(_api("getFile"), params={"file_id": file_id})
+            r.raise_for_status()
+            info = (r.json().get("result") or {})
+            file_path = info.get("file_path")
+            if not file_path:
+                return None
+            file_size = info.get("file_size", 0)
+            if file_size > _MAX_DESCARGAR:
+                log.warning("Archivo demasiado grande: %s bytes (max %s)", file_size, _MAX_DESCARGAR)
+                return None
+            download_url = f"{config.TELEGRAM_API}/file/bot{config.TELEGRAM_BOT_TOKEN}/{file_path}"
+            r2 = await client.get(download_url, timeout=60)
+            r2.raise_for_status()
+            return r2.content
+    except (httpx.HTTPError, KeyError) as e:
+        log.warning("No pude descargar archivo %s: %s", file_id, e)
+        return None
+
+
+async def enviar_documento(chat_id: str | int, file_path: str, caption: str = "",
+                           filename: str | None = None) -> bool:
+    """Envía un documento al chat de Telegram."""
+    import os
+
+    if not config.TELEGRAM_ENABLED or not os.path.exists(file_path):
+        return False
+    try:
+        with open(file_path, "rb") as f:
+            archivo = f.read()
+        nombre = filename or os.path.basename(file_path)
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                _api("sendDocument"),
+                data={"chat_id": str(chat_id), "caption": caption[:1024] if caption else ""},
+                files={"document": (nombre, archivo)},
+            )
+            r.raise_for_status()
+            return True
+    except (httpx.HTTPError, OSError) as e:
+        log.warning("No pude enviar documento a %s: %s", chat_id, e)
+        return False
